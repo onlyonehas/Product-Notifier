@@ -2,7 +2,7 @@ import axios from 'axios';
 import  { load }  from 'cheerio';
 import { promises as fs } from 'fs';
 import  * as TelegramBot from 'node-telegram-bot-api';
-import { telegramBotToken, telegramChatId } from '../config/dev';
+import { telegramBotToken, telegramUserId } from '../config';
 
 interface Product {
     date: string;
@@ -91,12 +91,6 @@ const productMonitor = async (product: Product) => {
             console.log(`- Matched: ${matched}`);
 
             // Send the result to Telegram
-            if (telegramBotToken && telegramChatId) {
-                const bot = new TelegramBot(telegramBotToken);
-                const message = `Product: ${title}\nPrice: ${price}\nMatched: ${matched}`;
-                await bot.sendMessage(telegramChatId, message);
-            }
-
             if (telegramBotToken && telegramUserId) {
                 const bot = new TelegramBot(telegramBotToken);
                 const message = `Product: ${title}\nPrice: ${price}\nMatched: ${matched}`;
