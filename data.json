@@ -10,6 +10,39 @@
                 "price": "£27.47",
                 "matched": "✅"
             }
+        },
+        {
+            "productUrl": "https://www.amazon.co.uk/dp/B085FQHP4H",
+            "desiredPrice": 28.84,
+            "monitorEnabled": true,
+            "date": "2023-06-04",
+            "result": {
+                "title": "Biotherm Homme 72H Day Control Extreme Protection Non-Stop Anti-Perspirant Roll-On 2 x 75ml",
+                "price": "£27.15",
+                "matched": "❌"
+            }
+        },
+        {
+            "productUrl": "https://www.amazon.co.uk/dp/B004OO3ANC",
+            "desiredPrice": 26,
+            "monitorEnabled": true,
+            "date": "2023-06-04",
+            "result": {
+                "title": "Greenwood Airvac AXS100 Bathroom / Toilet Extractor Fan 100mm / 4 Inch - Standard Version (NO Timer)",
+                "price": "£23.96",
+                "matched": "❌"
+            }
+        },
+        {
+            "productUrl": "https://www.amazon.co.uk/Plenty-White-Kitchen-Roll-Sheets/dp/B077NZHZD8",
+            "desiredPrice": 17.99,
+            "monitorEnabled": true,
+            "date": "2023-06-04",
+            "result": {
+                "title": "Plenty White Kitchen Roll 400 Sheets",
+                "price": "£14.99",
+                "matched": "❌"
+            }
         }
     ]
 }
