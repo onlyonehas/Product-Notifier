@@ -1,1 +1,15 @@
-{"https://www.amazon.co.uk/dp/B09CHXHQRB":{"date":"2023-06-02","result":{"title":"NERF Legends (PS5)","price":"£27.46"}}}
+{
+    "products": [
+        {
+            "productUrl": "https://www.amazon.co.uk/dp/B09CHXHQRB",
+            "desiredPrice": 27,
+            "monitorEnabled": true,
+            "date": "2023-06-04",
+            "result": {
+                "title": "NERF Legends (PS5)",
+                "price": "£27.47",
+                "matched": "✅"
+            }
+        }
+    ]
+}
