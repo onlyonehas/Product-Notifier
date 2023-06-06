@@ -25,7 +25,7 @@ const productMonitor = async (product: Product) => {
     // Read the existing data from the JSON file
     let data: { products: Product[] } = { products: [] };
     try {
-        const jsonData = await fs.readFile('/tmp/data.json', 'utf-8');
+        const jsonData = await fs.readFile('../data.json', 'utf-8');
         data = JSON.parse(jsonData);
     } catch (error) {
         console.error('Error reading the data file:', error);
@@ -83,7 +83,7 @@ const productMonitor = async (product: Product) => {
             }
 
             // Write the updated data object to the JSON file
-            await fs.writeFile('/tmp/data.json', JSON.stringify(data));
+            await fs.writeFile('../data.json', JSON.stringify(data));
 
             console.log('Product data:');
             console.log(`- Title: ${title}`);
@@ -108,7 +108,7 @@ const productMonitor = async (product: Product) => {
 
 export const handler = async () => {
     try {
-        const jsonData = await fs.readFile('/tmp/data.json', 'utf-8');
+        const jsonData = await fs.readFile('../data.json', 'utf-8');
         const data = JSON.parse(jsonData);
         const products: Product[] = data.products || [];
 

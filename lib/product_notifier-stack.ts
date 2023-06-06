@@ -12,16 +12,13 @@ export class ProductNotifierStack extends cdk.Stack {
     const productNotifierFunction = new lambda.Function(this, 'ProductNotifierFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: 'index.handler',
-      code: lambda.Code.fromAsset('src'),
-      environment: {
-        TELEGRAM_BOT_TOKEN: '<YOUR_TELEGRAM_BOT_TOKEN>',
-        TELEGRAM_CHAT_ID: '<YOUR_TELEGRAM_CHAT_ID>'
-      }
+      code: lambda.Code.fromAsset('src/bot.ts'),
+      environment: {},
     });
 
     // Create a CloudWatch Events rule to schedule the product notifier function
     const rule = new events.Rule(this, 'ScheduleRule', {
-      schedule: events.Schedule.expression('cron(0 0 * * ? *)'), // Run daily at midnight
+      schedule: events.Schedule.expression('cron(30 16 * * ? *)'), // Run daily at midnight
     });
     rule.addTarget(new targets.LambdaFunction(productNotifierFunction));
   }
