@@ -6,7 +6,9 @@
       "es2020",
       "dom"
     ],
-    "declaration": true,
+    "declaration": false,
+    "skipLibCheck": true,
+    "sourceMap": false,
     "strict": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
@@ -20,12 +22,17 @@
     "inlineSources": true,
     "experimentalDecorators": true,
     "strictPropertyInitialization": false,
+    "allowSyntheticDefaultImports": true,
     "typeRoots": [
       "./node_modules/@types"
-    ]
+    ],
+    "esModuleInterop": true
   },
   "exclude": [
     "node_modules",
-    "cdk.out"
+    "cdk.out",
+    "*.d.ts",
+    "src/index.d.ts",
+    "src/bot.d.ts",
   ]
 }

@@ -1,17 +1,17 @@
-// import * as cdk from 'aws-cdk-lib';
-// import { Template } from 'aws-cdk-lib/assertions';
-// import * as ProductNotifier from '../lib/product_notifier-stack';
+import { handler } from "../src/product-notifier"
 
-// example test. To run these tests, uncomment this file along with the
-// example resource in lib/product_notifier-stack.ts
-test('SQS Queue Created', () => {
-//   const app = new cdk.App();
-//     // WHEN
-//   const stack = new ProductNotifier.ProductNotifierStack(app, 'MyTestStack');
-//     // THEN
-//   const template = Template.fromStack(stack);
+const event = {
+    body: JSON.stringify({
+        message: {
+            text: '/get'
+        }
+    })
+};
 
-//   template.hasResourceProperties('AWS::SQS::Queue', {
-//     VisibilityTimeout: 300
-//   });
+describe.skip('Product Notifier', () => {
+    test('read the data file, scrape data and display on telegram', async () => {
+        const result = await handler({})
+        console.log(result)
+        expect(result).toBeTruthy();
+    })
 });

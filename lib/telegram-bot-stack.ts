@@ -1,27 +1,36 @@
 import { Stack, StackProps, CfnOutput } from 'aws-cdk-lib';
-import { Function, Runtime, Code } from 'aws-cdk-lib/aws-lambda';
+import { Function, Runtime, Code, Architecture } from 'aws-cdk-lib/aws-lambda';
 import { Queue } from 'aws-cdk-lib/aws-sqs';
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
-import * as path from 'path';
 import { Construct } from 'constructs';
+import { dataBucket } from '../config';
+import { PolicyStatement, Effect } from 'aws-cdk-lib/aws-iam';
 
 export class TelegramBotStack extends Stack {
+  functionRole: any;
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
     const queue = new Queue(this, 'TelegramBotQueue');
 
-    const lambdaFn = new Function(this, 'TelegramBotLambda', {
+    const telegramBotLambda = new Function(this, 'TelegramBotLambda', {
       runtime: Runtime.NODEJS_18_X,
-      handler: 'index.handler',
-      code: Code.fromAsset(path.join(__dirname, '../src/bot')),
-      environment: {
-        TELEGRAM_TOKEN: process.env.TELEGRAM_TOKEN || '',
-      },
+      handler: 'src/telegram-bot.handler',
+      code: Code.fromAsset('dist'),
+      environment: {},
+      architecture: Architecture.ARM_64
     });
 
-    queue.grantSendMessages(lambdaFn);
-    lambdaFn.addEventSource(new SqsEventSource(queue, { batchSize: 1 }));
+    telegramBotLambda.addToRolePolicy(
+      new PolicyStatement({
+        actions: ['s3:GetObject', 's3:PutObject'],
+        effect: Effect.ALLOW,
+        resources: [`arn:aws:s3:::${dataBucket.Bucket}/*`],
+      })
+    );
+
+    queue.grantSendMessages(telegramBotLambda);
+    telegramBotLambda.addEventSource(new SqsEventSource(queue, { batchSize: 1 }));
 
     new CfnOutput(this, 'QueueURL', {
       value: queue.queueUrl,
