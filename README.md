@@ -69,3 +69,5 @@ Extracted data:
   "price": "$19.99"
 }
 ```
+
+Please note that scraping websites without permission may violate the terms of service of the website and may have legal implications

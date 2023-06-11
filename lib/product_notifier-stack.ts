@@ -5,6 +5,7 @@ import { Function, Runtime, Code, Architecture } from 'aws-cdk-lib/aws-lambda';
 import { LambdaFunction } from 'aws-cdk-lib/aws-events-targets';
 import { PolicyStatement, Effect } from 'aws-cdk-lib/aws-iam';
 import { dataBucket } from '../config';
+import { Duration } from 'aws-cdk-lib';
 
 export class ProductNotifierStack extends cdk.Stack {
   functionRole: any;
@@ -17,7 +18,9 @@ export class ProductNotifierStack extends cdk.Stack {
       handler: 'src/product-notifier.handler',
       code: Code.fromAsset('dist'),
       environment: {},
-      architecture: Architecture.ARM_64
+      architecture: Architecture.ARM_64,
+      memorySize: 512, 
+      timeout: Duration.seconds(60)
     });
 
     productNotifierFunction.addToRolePolicy(

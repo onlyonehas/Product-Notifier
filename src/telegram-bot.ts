@@ -1,8 +1,8 @@
 import TelegramBot from 'node-telegram-bot-api';
-import { S3 } from 'aws-sdk';
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { telegramBotToken, telegramUserId, dataBucket } from '../config';
 
-const s3 = new S3();
+const s3 = new S3Client({ region: "eu-west-1" });
 
 type Product = {
   productUrl: string;
@@ -19,7 +19,8 @@ export const handler = async (event: any): Promise<any> => {
 
   const readData = async (): Promise<Product[] | null> => {
     try {
-      const jsonData = await s3.getObject(dataBucket).promise();
+      const jsonData =  await s3.send(new GetObjectCommand({ ...dataBucket}));
+      
       return JSON.parse(jsonData.Body?.toString() || '');
     } catch (error) {
       console.error('Error reading data from S3:', error);
@@ -29,7 +30,7 @@ export const handler = async (event: any): Promise<any> => {
 
   const writeData = async (data: Product[]): Promise<void> => {
     try {
-      await s3.putObject({ ...dataBucket, Body: JSON.stringify(data) }).promise();
+      await s3.send(new PutObjectCommand({ ...dataBucket, Body: JSON.stringify(data) }));
       console.log('Data written to S3 successfully.');
     } catch (error) {
       console.error('Error writing data to S3:', error);
@@ -41,8 +42,6 @@ export const handler = async (event: any): Promise<any> => {
     if (data) {
       const existingProduct = data.find((p: Product) => p.productUrl === productUrl);
       if (existingProduct) {
-        console.log("existingProduct")
-
         await bot.sendMessage(telegramUserId, 'Product already exists.');
       } else {
         const product: Product = {
