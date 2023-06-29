@@ -28,11 +28,12 @@
     ],
     "esModuleInterop": true
   },
+  "types": [
+    "node",
+  ],
   "exclude": [
     "node_modules",
     "cdk.out",
-    "*.d.ts",
-    "src/index.d.ts",
-    "src/bot.d.ts",
+    "*.d.ts"
   ]
 }

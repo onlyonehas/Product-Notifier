@@ -1,104 +1,135 @@
 import { load } from 'cheerio';
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import TelegramBot from 'node-telegram-bot-api';
-import { telegramBotToken, telegramUserId } from '../config';
-import { dataBucket } from '../config';
+import { telegramBotToken, telegramUserId, fileName } from '../config';
 import axios from 'axios';
+import fs from 'fs/promises';
 
-interface Params {
-  Bucket: string;
-  Key: string;
-}
+const bot = new TelegramBot(telegramBotToken);
 
 interface Product {
   date: string;
-  result: any;
+  result?: { title: string; newPrice: string; matched: string };
+  price?: { price: string; cost: string; profit: string; roi?: string };
   productUrl: string;
   desiredPrice: number;
   monitorEnabled: boolean;
 }
 
-interface Original {
-  products?: Product[];
-}
-
 interface Result {
   title: string;
-  price: string;
+  newPrice: string;
   matched: string;
 }
 
-const s3 = new S3Client({ region: "eu-west-1" });
-
 const getProductData = async (): Promise<Product[]> => {
-  const response = await s3.send(new GetObjectCommand({ ...dataBucket }));
-  const jsonData = await response?.Body?.transformToString();
-  return jsonData ? JSON.parse(jsonData) : [];
+  try {
+    const jsonData = await fs.readFile(fileName, 'utf8');
+    return JSON.parse(jsonData);
+  } catch (error) {
+    console.error('Error reading data file:', error);
+    return [];
+  }
 };
 
-const updateProductData = async (data: Product[]) => {
-  console.info('Updating file in S3');
-  return await s3.send(new PutObjectCommand({ ...dataBucket, Body: JSON.stringify(data) }));
+const updateProductData = async (data: Product[]): Promise<void> => {
+  try {
+    await fs.writeFile(fileName, JSON.stringify(data));
+    console.info('Data file updated successfully');
+  } catch (error) {
+    console.error('Error updating data file:', error);
+  }
 };
 
 const sendTelegramMessage = async (message: string) => {
   if (telegramBotToken && telegramUserId) {
-    const bot = new TelegramBot(telegramBotToken);
     console.info('Sending message to Telegram');
-    const { message_id, date, text } = await bot.sendMessage(telegramUserId, message);
+    const { message_id, date, text } = await bot.sendMessage(
+      telegramUserId,
+      message
+    );
     return { message_id, date, text };
   }
   return null;
 };
-const getProductHtml = async (productUrl: string) => {
-    try {
-      const response = await axios.get(productUrl);
-      if (response.status !== 200) {
-        throw new Error(`Error retrieving HTML. Status code: ${response.status}`);
-      }
-      return response.data;
-    } catch (error) {
-      console.error('Error retrieving HTML:', error);
-      throw error;
-    }
-  };
 
-const productMonitor = async (product: Product, data: Product[], params: Params) => {
-  const { productUrl, desiredPrice, monitorEnabled } = product;
+const getProductHtml = async (productUrl: string): Promise<string> => {
+  try {
+    const response = await axios.get(productUrl);
+    if (response.status !== 200) {
+      throw new Error(
+        `Error retrieving HTML. Status code: ${response.status}`
+      );
+    }
+    return response.data;
+  } catch (error) {
+    console.error('Error retrieving HTML:', error);
+    throw error;
+  }
+};
+
+const calculateNewProfitAndROI = ({
+  price,
+  cost,
+  profit,
+  priceFloat,
+}: any) => {
+  const fees = parseFloat(price) - parseFloat(cost) - parseFloat(profit);
+  const newProfit = priceFloat - parseFloat(cost) - fees;
+  const newROI = (newProfit / parseFloat(cost)) * 100;
+
+  return {
+    newProfit: newProfit.toFixed(2) || null,
+    newROI: newROI.toFixed(2) || null,
+  };
+};
+
+const productMonitor = async (product: Product, data: Product[]) => {
+  const { productUrl, desiredPrice, monitorEnabled, price } = product;
   const today = new Date().toISOString().split('T')[0];
   let botResponse = null;
 
   try {
-    if (!monitorEnabled) {
-      console.log('Product monitoring is disabled.');
+    if (monitorEnabled == false) {
+      console.info('Product monitoring is disabled.');
       return;
     }
 
     const html = await getProductHtml(productUrl);
-
     const $ = load(html);
 
     const title = $('#productTitle').text().trim();
-    const price = $('.a-offscreen').first().text().trim();
-    const priceFloat = parseFloat(price.replace('£', ''));
+    const newPrice = $('.a-offscreen').first().text().trim();
+    const priceFloat = parseFloat(newPrice.replace('£', ''));
     const matched = priceFloat >= desiredPrice ? '✅' : '❌';
 
     const result: Result = {
       title,
-      price,
+      newPrice,
       matched,
     };
+
+    const { newProfit, newROI } = calculateNewProfitAndROI({
+      ...price,
+      priceFloat,
+    });
+
+    const profitEmoji = parseFloat(newProfit ?? '0') >= 1.5 ? '🟢' : parseFloat(newProfit ?? '0') >= 1 ? '🟠' : '🔴';
+    const roiEmoji = parseFloat(newROI ?? '0') >= 30 ? '🟢' : parseFloat(newROI ?? '0') >= 20 ? '🟠' : '🔴';
+
 
     // Create or update the product in the data
     const updatedProduct: Product = {
       productUrl,
       desiredPrice,
-      monitorEnabled,
+      monitorEnabled: true,
       date: today,
       result,
+      price,
     };
 
-    const existingProductIndex = data.findIndex((p: Product) => p.productUrl === productUrl);
+    const existingProductIndex = data.findIndex(
+      (p: Product) => p.productUrl === productUrl
+    );
     if (existingProductIndex !== -1) {
       // Update the existing product
       data[existingProductIndex] = updatedProduct;
@@ -106,10 +137,9 @@ const productMonitor = async (product: Product, data: Product[], params: Params)
       // Add the new product to the data
       data.push(updatedProduct);
     }
-
     await updateProductData(data);
-
-    const message = `Product: ${title}\nCurrent Price: ${price}\nDesired Price: ${desiredPrice}\nMatched: ${matched}`;
+    console.info(`Product: \`${title}\ ${profitEmoji}-${roiEmoji}`)
+    const message = `Product: \`${title}\`\nCurrent Price: ${newPrice}\nProfit: £ *${newProfit}* ${profitEmoji}\nROI: *${newROI}* ${roiEmoji}`;
     botResponse = await sendTelegramMessage(message);
   } catch (error: unknown) {
     if (error instanceof Error) {
@@ -122,12 +152,32 @@ const productMonitor = async (product: Product, data: Product[], params: Params)
 export const handler = async (event: any) => {
   let response = null;
   try {
+    const shortDateTime = new Date().toLocaleString('en-US', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    });
+    await sendTelegramMessage(
+      `******** PRODUCT UPDATE ${shortDateTime} ********`
+    );
     const data = await getProductData();
-    const tasks = data.map((product) => productMonitor(product, data, dataBucket));
-    const results = await Promise.all(tasks);
-    response = results;
+
+    for (const product of data) {
+      const result = await productMonitor(product, data);
+      response = result;
+      // Delay between sending messages
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+
+    await sendTelegramMessage(
+      `------ FINISHED! ${shortDateTime} ------`
+    );
+    
   } catch (error) {
     console.error('Error reading the data file:', error);
   }
   return response;
 };
+
+(async () => {
+  await handler({});
+})();
