@@ -7,10 +7,9 @@
   "scripts": {
     "build": "tsc && rm -rf dist/ && node build.js",
     "watch": "tsc --watch",
-    "cdk": "tsc && cdk",
+    "product": "ts-node src/product-notifier.ts",
     "synth": "cdk synth",
-    "test": "jest",
-    "deploy": "npm run build && rm -rf cdk.out/ && cdk synth && cdk deploy --all"
+    "test": "jest"
   },
   "devDependencies": {
     "@types/jest": "^29.5.1",
