@@ -1,8 +1,9 @@
 import { load } from 'cheerio';
 import TelegramBot from 'node-telegram-bot-api';
-import { telegramBotToken, telegramUserId, fileName } from '../config';
+import { telegramBotToken, telegramUserId, FileName } from '../config';
 import axios from 'axios';
 import fs from 'fs/promises';
+import { storeMessage, escapeMarkdown, readMessageIds } from './helpers';
 
 const bot = new TelegramBot(telegramBotToken);
 
@@ -23,7 +24,7 @@ interface Result {
 
 const getProductData = async (): Promise<Product[]> => {
   try {
-    const jsonData = await fs.readFile(fileName, 'utf8');
+    const jsonData = await fs.readFile(FileName.Data, 'utf8');
     return JSON.parse(jsonData);
   } catch (error) {
     console.error('Error reading data file:', error);
@@ -33,7 +34,7 @@ const getProductData = async (): Promise<Product[]> => {
 
 const updateProductData = async (data: Product[]): Promise<void> => {
   try {
-    await fs.writeFile(fileName, JSON.stringify(data));
+    await fs.writeFile(FileName.Data, JSON.stringify(data));
     console.info('Data file updated successfully');
   } catch (error) {
     console.error('Error updating data file:', error);
@@ -45,11 +46,29 @@ const sendTelegramMessage = async (message: string) => {
     console.info('Sending message to Telegram');
     const { message_id, date, text } = await bot.sendMessage(
       telegramUserId,
-      message
+      message,
+      {
+        parse_mode: 'MarkdownV2',
+        disable_web_page_preview: true,
+      }
     );
+    storeMessage(FileName.Message, message_id);
     return { message_id, date, text };
   }
   return null;
+};
+
+const deleteMessages = async (messageIds: number[]): Promise<void> => {
+  try {
+    for (const messageId of messageIds) {
+      await bot.deleteMessage(telegramUserId, messageId);
+      console.info(`Deleted message with ID: ${messageId}`);
+    }
+    const newMessageIds = messageIds.filter(id => !messageIds.includes(id));
+    await fs.writeFile(FileName.Message, newMessageIds.join('\n'));
+  } catch (error) {
+    console.error('Error deleting messages:', error);
+  }
 };
 
 const getProductHtml = async (productUrl: string): Promise<string> => {
@@ -108,14 +127,16 @@ const productMonitor = async (product: Product, data: Product[]) => {
       matched,
     };
 
-    const { newProfit, newROI } = calculateNewProfitAndROI({
+    let { newProfit, newROI } = calculateNewProfitAndROI({
       ...price,
       priceFloat,
     });
 
-    const profitEmoji = parseFloat(newProfit ?? '0') >= 1.5 ? '🟢' : parseFloat(newProfit ?? '0') >= 1 ? '🟠' : '🔴';
-    const roiEmoji = parseFloat(newROI ?? '0') >= 30 ? '🟢' : parseFloat(newROI ?? '0') >= 20 ? '🟠' : '🔴';
+    newProfit = newProfit || ''
+    newROI = newProfit || ''
 
+    const profitEmoji = parseFloat(newProfit ?? '0') >= 1.5 ? '🟢' : parseFloat(newProfit ?? '0') >= 1 ? '🟠' : '🔴';
+    const roiEmoji = parseFloat(newROI ?? '0') >= 25 ? '🟢' : parseFloat(newROI ?? '0') >= 20 ? '🟠' : '🔴';
 
     // Create or update the product in the data
     const updatedProduct: Product = {
@@ -139,10 +160,24 @@ const productMonitor = async (product: Product, data: Product[]) => {
     }
     await updateProductData(data);
     console.info(`Product: \`${title}\ ${profitEmoji}-${roiEmoji}`)
-    const message = `Product: \`${title}\`\nCurrent Price: ${newPrice}\nProfit: £ *${newProfit}* ${profitEmoji}\nROI: *${newROI}* ${roiEmoji}`;
+    // const message = `Product: \`${title}\`\nCurrent Price: ${newPrice}\nProfit: £ ${newProfit} ${profitEmoji}\nROI: ${newROI} ${roiEmoji}\nURL: ${productUrl}`;
+
+    const escapedNewProfit = escapeMarkdown(newProfit);
+    const escapedPrice = escapeMarkdown(newPrice);
+    const escapedNewROI = escapeMarkdown(newROI);
+    const escapedTitle = escapeMarkdown(title);;
+
+    const message = `
+        *Product:* [${escapedTitle}](${productUrl})
+        *Current Price:* ${escapedPrice}
+        *Profit:* £ ${escapedNewProfit} ${profitEmoji}
+        *ROI:* ${escapedNewROI} ${roiEmoji}
+    `;
+
     botResponse = await sendTelegramMessage(message);
   } catch (error: unknown) {
     if (error instanceof Error) {
+      storeMessage(FileName.Error, product);
       console.error('Error:', error.message);
     }
   }
@@ -150,15 +185,21 @@ const productMonitor = async (product: Product, data: Product[]) => {
 };
 
 export const handler = async (event: any) => {
+  const messageIds = await readMessageIds()
+  messageIds ?? await deleteMessages(messageIds)
+
   let response = null;
   try {
-    const shortDateTime = new Date().toLocaleString('en-US', {
+    const shortDateTime = new Date().toLocaleString('en-UK', {
       dateStyle: 'short',
       timeStyle: 'short',
     });
+
+    const escapedStars = `\*\*\*\*`
     await sendTelegramMessage(
-      `******** PRODUCT UPDATE ${shortDateTime} ********`
+      `*PRODUCT UPDATE* ${shortDateTime}`
     );
+
     const data = await getProductData();
 
     for (const product of data) {
@@ -169,9 +210,9 @@ export const handler = async (event: any) => {
     }
 
     await sendTelegramMessage(
-      `------ FINISHED! ${shortDateTime} ------`
+      `*FINISHED!* ${shortDateTime}`
     );
-    
+
   } catch (error) {
     console.error('Error reading the data file:', error);
   }
