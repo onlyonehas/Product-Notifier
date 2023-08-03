@@ -35,7 +35,6 @@ const getProductData = async (): Promise<Product[]> => {
 const updateProductData = async (data: Product[]): Promise<void> => {
   try {
     await fs.writeFile(FileName.Data, JSON.stringify(data));
-    console.info('Data file updated successfully');
   } catch (error) {
     console.error('Error updating data file:', error);
   }
@@ -160,7 +159,6 @@ const productMonitor = async (product: Product, data: Product[]) => {
     }
     await updateProductData(data);
     console.info(`Product: \`${title}\ ${profitEmoji}-${roiEmoji}`)
-    // const message = `Product: \`${title}\`\nCurrent Price: ${newPrice}\nProfit: £ ${newProfit} ${profitEmoji}\nROI: ${newROI} ${roiEmoji}\nURL: ${productUrl}`;
 
     const escapedNewProfit = escapeMarkdown(newProfit);
     const escapedPrice = escapeMarkdown(newPrice);
@@ -177,16 +175,16 @@ const productMonitor = async (product: Product, data: Product[]) => {
     botResponse = await sendTelegramMessage(message);
   } catch (error: unknown) {
     if (error instanceof Error) {
-      storeMessage(FileName.Error, product);
+      storeMessage(FileName.Error, JSON.stringify(product));
       console.error('Error:', error.message);
     }
   }
   return botResponse;
 };
 
-export const handler = async (event: any) => {
+export const handler = async () => {
   const messageIds = await readMessageIds()
-  messageIds ?? await deleteMessages(messageIds)
+  messageIds && await deleteMessages(messageIds)
 
   let response = null;
   try {
@@ -195,9 +193,9 @@ export const handler = async (event: any) => {
       timeStyle: 'short',
     });
 
-    const escapedStars = `\*\*\*\*`
+    const stars = `\*\*\*\*`
     await sendTelegramMessage(
-      `*PRODUCT UPDATE* ${shortDateTime}`
+      `${stars} *PRODUCT UPDATE* ${shortDateTime} ${stars}`
     );
 
     const data = await getProductData();
@@ -210,7 +208,7 @@ export const handler = async (event: any) => {
     }
 
     await sendTelegramMessage(
-      `*FINISHED!* ${shortDateTime}`
+      `${stars} *FINISHED\!* ${shortDateTime} ${stars}`
     );
 
   } catch (error) {
@@ -220,5 +218,5 @@ export const handler = async (event: any) => {
 };
 
 (async () => {
-  await handler({});
+  await handler();
 })();
