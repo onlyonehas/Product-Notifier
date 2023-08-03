@@ -9,3 +9,7 @@ cdk.out
 config.*
 dist/
 data.json
+error.json
+message_ids.txt
+.npmignore
+.DS_Store
