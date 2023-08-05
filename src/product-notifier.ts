@@ -6,6 +6,7 @@ import fs from 'fs/promises';
 import { storeMessage, escapeMarkdown, readMessageIds } from './helpers';
 
 const bot = new TelegramBot(telegramBotToken);
+let counter=0
 
 interface Product {
   date: string;
@@ -173,10 +174,10 @@ const productMonitor = async (product: Product, data: Product[]) => {
     `;
 
     botResponse = await sendTelegramMessage(message);
+    counter++;
   } catch (error: unknown) {
     if (error instanceof Error) {
-      console.log(product)
-      storeMessage(FileName.Error, JSON.stringify({product}));
+      storeMessage(FileName.Error, JSON.stringify({product}+","));
       console.error('Error:', error.message);
     }
   }
@@ -209,7 +210,7 @@ export const handler = async () => {
     }
 
     await sendTelegramMessage(
-      `${stars} *FINISHED*\\! ${shortDateTime} ${stars}`
+      `${stars} *${counter}/${data.length}  FINISHED*\\! ${shortDateTime} ${stars}`
     );
 
   } catch (error) {
