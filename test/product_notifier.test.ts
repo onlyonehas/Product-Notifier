@@ -10,7 +10,7 @@ const event = {
 
 describe('Product Notifier', () => {
     test('read the data file, scrape data and display on telegram', async () => {
-        const result = await handler({})
+        const result = await handler()
         console.log(result)
         expect(result).toBeTruthy();
     })

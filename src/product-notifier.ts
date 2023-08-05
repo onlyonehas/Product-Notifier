@@ -132,7 +132,7 @@ const productMonitor = async (product: Product, data: Product[]) => {
     });
 
     newProfit = newProfit || ''
-    newROI = newProfit || ''
+    newROI = newROI || ''
 
     const profitEmoji = parseFloat(newProfit ?? '0') >= 1.5 ? '🟢' : parseFloat(newProfit ?? '0') >= 1 ? '🟠' : '🔴';
     const roiEmoji = parseFloat(newROI ?? '0') >= 25 ? '🟢' : parseFloat(newROI ?? '0') >= 20 ? '🟠' : '🔴';
@@ -160,22 +160,23 @@ const productMonitor = async (product: Product, data: Product[]) => {
     await updateProductData(data);
     console.info(`Product: \`${title}\ ${profitEmoji}-${roiEmoji}`)
 
-    const escapedNewProfit = escapeMarkdown(newProfit);
+    const escapedProfit = escapeMarkdown(newProfit);
     const escapedPrice = escapeMarkdown(newPrice);
-    const escapedNewROI = escapeMarkdown(newROI);
+    const escapedROI = escapeMarkdown(newROI);
     const escapedTitle = escapeMarkdown(title);;
 
     const message = `
         *Product:* [${escapedTitle}](${productUrl})
         *Current Price:* ${escapedPrice}
-        *Profit:* £ ${escapedNewProfit} ${profitEmoji}
-        *ROI:* ${escapedNewROI} ${roiEmoji}
+        *Profit:* £ ${escapedProfit} ${profitEmoji}
+        *ROI:* ${escapedROI} ${roiEmoji}
     `;
 
     botResponse = await sendTelegramMessage(message);
   } catch (error: unknown) {
     if (error instanceof Error) {
-      storeMessage(FileName.Error, JSON.stringify(product));
+      console.log(product)
+      storeMessage(FileName.Error, JSON.stringify({product}));
       console.error('Error:', error.message);
     }
   }
@@ -193,7 +194,7 @@ export const handler = async () => {
       timeStyle: 'short',
     });
 
-    const stars = `\*\*\*\*`
+    const stars = `\\*\\*\\*\\*`
     await sendTelegramMessage(
       `${stars} *PRODUCT UPDATE* ${shortDateTime} ${stars}`
     );
@@ -208,7 +209,7 @@ export const handler = async () => {
     }
 
     await sendTelegramMessage(
-      `${stars} *FINISHED\!* ${shortDateTime} ${stars}`
+      `${stars} *FINISHED*\\! ${shortDateTime} ${stars}`
     );
 
   } catch (error) {
