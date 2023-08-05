@@ -3,15 +3,20 @@ import TelegramBot from 'node-telegram-bot-api';
 import { telegramBotToken, telegramUserId, FileName } from '../config';
 import axios from 'axios';
 import fs from 'fs/promises';
-import { storeMessage, escapeMarkdown, readMessageIds } from './helpers';
+import {
+  storeMessage,
+  escapeMarkdown,
+  readMessageIds,
+  promptSelect
+} from './helpers';
 
 const bot = new TelegramBot(telegramBotToken);
-let counter=0
+let counter = 0;
 
 interface Product {
   date: string;
-  result?: { title: string; newPrice: string; matched: string };
-  price?: { price: string; cost: string; profit: string; roi?: string };
+  result: Result;
+  price: Price;
   productUrl: string;
   desiredPrice: number;
   monitorEnabled: boolean;
@@ -21,6 +26,13 @@ interface Result {
   title: string;
   newPrice: string;
   matched: string;
+}
+
+interface Price {
+  price: string;
+  cost: string;
+  profit: string;
+  roi?: string;
 }
 
 const getProductData = async (): Promise<Product[]> => {
@@ -42,20 +54,22 @@ const updateProductData = async (data: Product[]): Promise<void> => {
 };
 
 const sendTelegramMessage = async (message: string) => {
-  if (telegramBotToken && telegramUserId) {
-    console.info('Sending message to Telegram');
-    const { message_id, date, text } = await bot.sendMessage(
-      telegramUserId,
-      message,
-      {
-        parse_mode: 'MarkdownV2',
-        disable_web_page_preview: true,
-      }
-    );
-    storeMessage(FileName.Message, message_id);
-    return { message_id, date, text };
+  if (!telegramBotToken || !telegramUserId) {
+    return null;
   }
-  return null;
+
+  console.info('Sending message to Telegram');
+  const { message_id, date, text } = await bot.sendMessage(
+    telegramUserId,
+    message,
+    {
+      parse_mode: 'MarkdownV2',
+      disable_web_page_preview: true,
+    }
+  );
+
+  storeMessage(FileName.Message, message_id);
+  return { message_id, date, text };
 };
 
 const deleteMessages = async (messageIds: number[]): Promise<void> => {
@@ -64,6 +78,7 @@ const deleteMessages = async (messageIds: number[]): Promise<void> => {
       await bot.deleteMessage(telegramUserId, messageId);
       console.info(`Deleted message with ID: ${messageId}`);
     }
+
     const newMessageIds = messageIds.filter(id => !messageIds.includes(id));
     await fs.writeFile(FileName.Message, newMessageIds.join('\n'));
   } catch (error) {
@@ -86,31 +101,28 @@ const getProductHtml = async (productUrl: string): Promise<string> => {
   }
 };
 
-const calculateNewProfitAndROI = ({
-  price,
-  cost,
-  profit,
-  priceFloat,
-}: any) => {
+const calculateNewProfitAndROI = (priceInfo: Price): { newProfit: string; newROI: string } => {
+  const { price, cost, profit } = priceInfo;
   const fees = parseFloat(price) - parseFloat(cost) - parseFloat(profit);
-  const newProfit = priceFloat - parseFloat(cost) - fees;
-  const newROI = (newProfit / parseFloat(cost)) * 100;
+  const priceFloat = parseFloat(price);
+  const newProfit = (priceFloat - parseFloat(cost) - fees).toFixed(2) || '0';
+  const newROI = (((priceFloat - parseFloat(cost) - fees) / parseFloat(cost)) * 100).toFixed(2) || '0';
 
   return {
-    newProfit: newProfit.toFixed(2) || null,
-    newROI: newROI.toFixed(2) || null,
+    newProfit,
+    newROI,
   };
 };
 
-const productMonitor = async (product: Product, data: Product[]) => {
+const processProduct = async (product: Product, data: Product[]): Promise<null | object> => {
   const { productUrl, desiredPrice, monitorEnabled, price } = product;
   const today = new Date().toISOString().split('T')[0];
-  let botResponse = null;
+  let botResponse: null | object = null;
 
   try {
-    if (monitorEnabled == false) {
+    if (!monitorEnabled) {
       console.info('Product monitoring is disabled.');
-      return;
+      return null;
     }
 
     const html = await getProductHtml(productUrl);
@@ -127,18 +139,11 @@ const productMonitor = async (product: Product, data: Product[]) => {
       matched,
     };
 
-    let { newProfit, newROI } = calculateNewProfitAndROI({
-      ...price,
-      priceFloat,
-    });
-
-    newProfit = newProfit || ''
-    newROI = newROI || ''
+    const { newProfit, newROI } = calculateNewProfitAndROI(price);
 
     const profitEmoji = parseFloat(newProfit ?? '0') >= 1.5 ? '🟢' : parseFloat(newProfit ?? '0') >= 1 ? '🟠' : '🔴';
     const roiEmoji = parseFloat(newROI ?? '0') >= 25 ? '🟢' : parseFloat(newROI ?? '0') >= 20 ? '🟠' : '🔴';
 
-    // Create or update the product in the data
     const updatedProduct: Product = {
       productUrl,
       desiredPrice,
@@ -148,36 +153,32 @@ const productMonitor = async (product: Product, data: Product[]) => {
       price,
     };
 
-    const existingProductIndex = data.findIndex(
-      (p: Product) => p.productUrl === productUrl
-    );
+    const existingProductIndex = data.findIndex((p: Product) => p.productUrl === productUrl);
     if (existingProductIndex !== -1) {
-      // Update the existing product
       data[existingProductIndex] = updatedProduct;
     } else {
-      // Add the new product to the data
       data.push(updatedProduct);
     }
     await updateProductData(data);
-    console.info(`Product: \`${title}\ ${profitEmoji}-${roiEmoji}`)
+    console.info(`Product: \`${title}\ ${profitEmoji}-${roiEmoji}`);
 
     const escapedProfit = escapeMarkdown(newProfit);
     const escapedPrice = escapeMarkdown(newPrice);
     const escapedROI = escapeMarkdown(newROI);
-    const escapedTitle = escapeMarkdown(title);;
+    const escapedTitle = escapeMarkdown(title);
 
     const message = `
-        *Product:* [${escapedTitle}](${productUrl})
-        *Current Price:* ${escapedPrice}
-        *Profit:* £ ${escapedProfit} ${profitEmoji}
-        *ROI:* ${escapedROI} ${roiEmoji}
+      *Product:* [${escapedTitle}](${productUrl})
+      *Current Price:* ${escapedPrice}
+      *Profit:* £ ${escapedProfit} ${profitEmoji}
+      *ROI:* ${escapedROI} ${roiEmoji}
     `;
 
     botResponse = await sendTelegramMessage(message);
     counter++;
   } catch (error: unknown) {
     if (error instanceof Error) {
-      storeMessage(FileName.Error, JSON.stringify({product}+","));
+      storeMessage(FileName.Error, JSON.stringify({ product }) + ',');
       console.error('Error:', error.message);
     }
   }
@@ -185,34 +186,41 @@ const productMonitor = async (product: Product, data: Product[]) => {
 };
 
 export const handler = async () => {
-  const messageIds = await readMessageIds()
-  messageIds && await deleteMessages(messageIds)
+  const messageIds = await readMessageIds();
+  if (messageIds) {
+    await deleteMessages(messageIds);
+  }
 
-  let response = null;
+  let response: null | object = null;
   try {
     const shortDateTime = new Date().toLocaleString('en-UK', {
       dateStyle: 'short',
       timeStyle: 'short',
     });
 
-    const stars = `\\*\\*\\*\\*`
-    await sendTelegramMessage(
-      `${stars} *PRODUCT UPDATE* ${shortDateTime} ${stars}`
-    );
+    const stars = `\\*\\*\\*\\*`;
+    await sendTelegramMessage(`${stars} *PRODUCT UPDATE* ${shortDateTime} ${stars}`);
 
     const data = await getProductData();
+    const allOption = 'All products';
+    const products = data.map((product) => product.result?.title || product.productUrl);
 
-    for (const product of data) {
-      const result = await productMonitor(product, data);
+    const reprocessChoice = await promptSelect(
+      'Select which products to reprocess:',
+      [allOption, ...products]
+    );
+
+    const productsToProcess = reprocessChoice.includes(allOption)
+      ? data
+      : reprocessChoice.map((choice) => data[parseInt(choice.split('. ')[0]) - 1]);
+
+    for (const product of productsToProcess) {
+      const result = await processProduct(product, data);
       response = result;
-      // Delay between sending messages
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
 
-    await sendTelegramMessage(
-      `${stars} *${counter}/${data.length}  FINISHED*\\! ${shortDateTime} ${stars}`
-    );
-
+    await sendTelegramMessage(`${stars} *${counter}/${data.length}  FINISHED*\\! ${shortDateTime} ${stars}`);
   } catch (error) {
     console.error('Error reading the data file:', error);
   }

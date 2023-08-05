@@ -1,5 +1,6 @@
 import * as fs from 'fs/promises';
 import { createInterface } from 'readline';
+import { FileName } from '../config';
 
 interface PriceInfo {
   cost: string;
@@ -84,7 +85,7 @@ const main = async (): Promise<void> => {
     let shouldAddAnother = true;
     while (shouldAddAnother) {
       const productInfo = await getProductInfo();
-      const jsonData = await fs.readFile('data.json', 'utf-8');
+      const jsonData = await fs.readFile(FileName.Data, 'utf-8');
       const products: Product[] = JSON.parse(jsonData);
       products.push(productInfo);
       await fs.writeFile('data.json', JSON.stringify(products, null, 2));
