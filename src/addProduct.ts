@@ -1,41 +1,15 @@
 import * as fs from 'fs/promises';
 import { createInterface } from 'readline';
 import { FileName } from '../config';
-
-interface PriceInfo {
-  cost: string;
-  price: string;
-  profit: string;
-}
-
-interface Product {
-  productUrl: string;
-  monitorEnabled: boolean;
-  date: string;
-  price: PriceInfo;
-  desiredPrice: number;
-}
-
-const prompt = async (question: string): Promise<string> => {
-  const rl = createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  return new Promise((resolve) => {
-    rl.question(question, (answer: string) => {
-      rl.close();
-      resolve(answer);
-    });
-  });
-};
+import { prompt } from './helpers/promptHelper';
+import { ProductData } from './sharedTypes/Product';
 
 const getProductUrl = async (): Promise<string> => {
   const productUrl = await prompt('Enter the product URL: ');
   return productUrl;
 };
 
-const getProductInfo = async (): Promise<Product> => {
+const getProductInfo = async (): Promise<ProductData> => {
   const productUrl = await getProductUrl();
 
   const lines: string[] = [];
@@ -86,9 +60,9 @@ const main = async (): Promise<void> => {
     while (shouldAddAnother) {
       const productInfo = await getProductInfo();
       const jsonData = await fs.readFile(FileName.Data, 'utf-8');
-      const products: Product[] = JSON.parse(jsonData);
+      const products: ProductData[] = JSON.parse(jsonData);
       products.push(productInfo);
-      await fs.writeFile('data.json', JSON.stringify(products, null, 2));
+      await fs.writeFile(FileName.Data, JSON.stringify(products, null, 2));
       console.log('Product added successfully!\n');
 
       const addAnother = await prompt('Add another product? (yes/no): ');

@@ -1,4 +1,4 @@
-import { handler } from "../src/telegram-bot"
+import { handler } from "../src/telegramBot"
 
 describe.skip('Telegram Bot', () => {
     const event = {

@@ -1,4 +1,4 @@
-import { handler } from "../src/product-notifier"
+import { handler } from "../src/productNotifier"
 
 const event = {
     body: JSON.stringify({

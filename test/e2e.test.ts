@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { handler } from "../src/telegram-bot"
+import { handler } from "../src/telegramBot"
 
 
 describe.skip('End-to-End Telegram-Bot Test: /edit', () => {
