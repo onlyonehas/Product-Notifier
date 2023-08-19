@@ -23,6 +23,7 @@
     "experimentalDecorators": true,
     "strictPropertyInitialization": false,
     "allowSyntheticDefaultImports": true,
+    "outDir": "./dist",
     "typeRoots": [
       "./node_modules/@types"
     ],

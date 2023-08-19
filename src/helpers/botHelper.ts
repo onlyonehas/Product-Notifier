@@ -1,6 +1,6 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { telegramBotToken, telegramUserId, FileName } from '../../config';
-import { storeMessage } from './fileHelper'
+import { storeMessage, storeNewMessage } from './fileHelper'
 
 const bot = new TelegramBot(telegramBotToken);
 
@@ -31,7 +31,7 @@ export const deleteTelegramMessages = async (messageIds: number[]): Promise<void
       }
   
       const newMessageIds = messageIds.filter(id => !messageIds.includes(id));
-      storeMessage(FileName.Message, newMessageIds.join('\n'));
+      storeNewMessage(FileName.Message, newMessageIds.join('\n'));
     } catch (error) {
       console.error('Error deleting messages:', error);
     }

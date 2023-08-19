@@ -28,6 +28,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.350.0",
     "axios": "^1.4.0",
+    "dotenv": "^16.3.1",
     "fs-extra": "^11.1.1",
     "node-telegram-bot-api": "^0.61.0",
     "puppeteer": "^20.7.1"

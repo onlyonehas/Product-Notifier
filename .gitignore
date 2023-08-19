@@ -9,7 +9,8 @@ cdk.out
 config.*
 dist/
 data.json
-error.json
-message_ids.txt
+output/
+extractors/
 .npmignore
 .DS_Store
+.env

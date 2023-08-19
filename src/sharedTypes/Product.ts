@@ -3,13 +3,14 @@ interface ProductData {
     result?: ExtractedData;
     price: Price;
     productUrl: string;
+    saUrl?: string;
     desiredPrice: number;
     monitorEnabled: boolean;
 }
 
 interface ExtractedData {
     title: string;
-    newPrice: string;
+    latestPrice: string;
     matched: string;
 }
 

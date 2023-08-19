@@ -9,7 +9,7 @@ import {
   updateProductData
 } from './helpers/fileHelper';
 import { sendTelegramMessage, deleteTelegramMessages } from './helpers/botHelper';
-import { promptSelect } from './helpers/promptHelper';
+import { extractASIN, promptSelect } from './helpers/promptHelper';
 import { ProductData, ExtractedData, Price } from './sharedTypes/Product';
 
 let counter = 0;
@@ -29,21 +29,20 @@ const getProductHtml = async (productUrl: string): Promise<string> => {
   }
 };
 
-const calculateNewProfitAndROI = (priceInfo: Price): { newProfit: string; newROI: string } => {
-  const { price, cost, profit } = priceInfo;
+const calculateNewProfitAndROI = (originalPriceInfo: Price, latestPrice: number): { latestProfit: string; latestROI: string } => {
+  const { price, cost, profit } = originalPriceInfo;
   const fees = parseFloat(price) - parseFloat(cost) - parseFloat(profit);
-  const priceFloat = parseFloat(price);
-  const newProfit = (priceFloat - parseFloat(cost) - fees).toFixed(2) || '0';
-  const newROI = (((priceFloat - parseFloat(cost) - fees) / parseFloat(cost)) * 100).toFixed(2) || '0';
+  const latestProfit = (latestPrice - parseFloat(cost) - fees).toFixed(2) || '0';
+  const latestROI = (((latestPrice - parseFloat(cost) - fees) / parseFloat(cost)) * 100).toFixed(2) || '0';
 
   return {
-    newProfit,
-    newROI,
+    latestProfit,
+    latestROI,
   };
 };
 
 const processProduct = async (product: ProductData, data: ProductData[]): Promise<null | object> => {
-  const { productUrl, desiredPrice, monitorEnabled, price } = product;
+  const { productUrl, saUrl, desiredPrice, monitorEnabled, price } = product;
   const today = new Date().toISOString().split('T')[0];
   let botResponse: null | object = null;
 
@@ -57,23 +56,34 @@ const processProduct = async (product: ProductData, data: ProductData[]): Promis
     const $ = load(html);
 
     const title = $('#productTitle').text().trim();
-    const newPrice = $('.a-offscreen').first().text().trim();
-    const priceFloat = parseFloat(newPrice.replace('£', ''));
-    const matched = priceFloat >= desiredPrice ? '✅' : '❌';
+    const priceElement = $('.a-offscreen').first().text().trim();
+    const latestPrice = parseFloat(priceElement.replace('£', ''));
+    const matched = latestPrice >= desiredPrice ? '✅' : '❌';
 
     const result: ExtractedData = {
       title,
-      newPrice,
+      latestPrice: priceElement,
       matched,
     };
 
-    const { newProfit, newROI } = calculateNewProfitAndROI(price);
+    const originalPriceInfo = {
+      price: price.price,
+      cost: price.cost,
+      profit: price.profit,
+    };
 
-    const profitEmoji = parseFloat(newProfit ?? '0') >= 1.5 ? '🟢' : parseFloat(newProfit ?? '0') >= 1 ? '🟠' : '🔴';
-    const roiEmoji = parseFloat(newROI ?? '0') >= 25 ? '🟢' : parseFloat(newROI ?? '0') >= 20 ? '🟠' : '🔴';
+    const { latestProfit, latestROI } = calculateNewProfitAndROI(originalPriceInfo, latestPrice);
+
+    const profitEmoji = parseFloat(latestProfit ?? '0') >= 1.5 ? '🟢' : parseFloat(latestProfit ?? '0') >= 1 ? '🟠' : '🔴';
+    const roiEmoji = parseFloat(latestROI ?? '0') >= 25 ? '🟢' : parseFloat(latestROI ?? '0') >= 20 ? '🟠' : '🔴';
+
+    const asin = saUrl ?? extractASIN(productUrl) as string[]
+    const saLink = asin[1] && `https://sas.selleramp.com/sas/lookup?SasLookup%5Bsearch_term%5D=${asin[1]}`
+    let getSaUrl = saUrl ?? saLink
 
     const updatedProduct: ProductData = {
       productUrl,
+      saUrl: getSaUrl,
       desiredPrice,
       monitorEnabled: true,
       date: today,
@@ -90,23 +100,22 @@ const processProduct = async (product: ProductData, data: ProductData[]): Promis
     await updateProductData(data);
     console.info(`Product: \`${title}\ ${profitEmoji}-${roiEmoji}`);
 
-    const escapedProfit = escapeMarkdown(newProfit);
-    const escapedPrice = escapeMarkdown(newPrice);
-    const escapedROI = escapeMarkdown(newROI);
+    const escapedProfit = escapeMarkdown(latestProfit);
+    const escapedPrice = escapeMarkdown(priceElement);
+    const escapedROI = escapeMarkdown(latestROI);
     const escapedTitle = escapeMarkdown(title);
 
     const message = `
-      *Product:* [${escapedTitle}](${productUrl})
-      *Current Price:* ${escapedPrice}
-      *Profit:* £ ${escapedProfit} ${profitEmoji}
-      *ROI:* ${escapedROI} ${roiEmoji}
+      *Product:* [${escapedTitle}](${getSaUrl})
+      *Current Price:* ${escapedPrice} *Desired Price:* ${matched}
+      *Profit:* £ ${escapedProfit} ${profitEmoji} *ROI:* ${escapedROI} ${roiEmoji}
     `;
 
     botResponse = await sendTelegramMessage(message);
     counter++;
   } catch (error: unknown) {
     if (error instanceof Error) {
-      storeMessage(FileName.Error, JSON.stringify({ product }) + ',');
+      storeMessage(FileName.Error, JSON.stringify(product, null, 2) + ",");
       console.error('Error:', error.message);
     }
   }
@@ -114,11 +123,6 @@ const processProduct = async (product: ProductData, data: ProductData[]): Promis
 };
 
 export const handler = async () => {
-  const messageIds = await readMessageIds();
-  if (messageIds) {
-    await deleteTelegramMessages(messageIds);
-  }
-
   let response: null | object = null;
   try {
     const shortDateTime = new Date().toLocaleString('en-UK', {
@@ -126,28 +130,46 @@ export const handler = async () => {
       timeStyle: 'short',
     });
 
-    const stars = `\\*\\*\\*\\*`;
-    await sendTelegramMessage(`${stars} *PRODUCT UPDATE* ${shortDateTime} ${stars}`);
-
     const data = await getProductData();
     const allOption = 'All products';
-    const products = data.map((product) => product.result?.title || product.productUrl);
+    const products = data.map((product, index) => ({ ...product, id: index }));
 
     const reprocessChoice = await promptSelect(
       'Select which products to reprocess:',
-      [allOption, ...products]
+      [allOption, ...products.map(product => product.result?.title || '')]
     );
 
-    const productsToProcess = reprocessChoice.includes(allOption)
+    const containsAll = reprocessChoice.includes(allOption)
+
+    if (containsAll) {
+      const messageIds = await readMessageIds();
+      if (messageIds.length > 1) {
+        await deleteTelegramMessages(messageIds);
+      }
+    }
+    const stars = `\\*\\*\\*\\*`;
+    await sendTelegramMessage(`${stars} *PRODUCT UPDATE* ${shortDateTime} ${stars}`);
+
+    const productsToProcess = containsAll
       ? data
-      : reprocessChoice.map((choice) => data[parseInt(choice.split('. ')[0]) - 1]);
+      : reprocessChoice.map((choice) => {
+        const matchingProduct = products.find((product) => product.result?.title === choice);
+        if (matchingProduct) {
+          return matchingProduct;
+        } else {
+          console.error('Invalid choice:', choice);
+          return null;
+        }
+      });
 
     for (const product of productsToProcess) {
-      const result = await processProduct(product, data);
-      response = result;
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      if (product !== null) {
+        const result = await processProduct(product, data);
+        response = result;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
     }
-
+    console.info(`Finished: ${shortDateTime}`);
     await sendTelegramMessage(`${stars} *${counter}/${data.length}  FINISHED*\\! ${shortDateTime} ${stars}`);
   } catch (error) {
     console.error('Error reading the data file:', error);
